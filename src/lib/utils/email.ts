@@ -1,6 +1,13 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendInstance: Resend | null = null;
+
+function getResend(): Resend {
+  if (!resendInstance) {
+    resendInstance = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendInstance;
+}
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -9,7 +16,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   const verificationUrl = `${APP_URL}/dogrulama?token=${token}`;
 
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: `Bilge Hybrid <${FROM_EMAIL}>`,
       to: email,
       subject: 'E-posta Adresinizi Doğrulayın - Bilge Hybrid',
