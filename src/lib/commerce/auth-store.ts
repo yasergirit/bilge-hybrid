@@ -93,7 +93,7 @@ export function useAuth() {
           last_name: data.lastName,
           phone: data.phone,
         },
-        emailRedirectTo: `${window.location.origin}/dogrulama`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dogrulama`,
       },
     });
 
@@ -127,7 +127,7 @@ export function useAuth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dogrulama`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -162,7 +162,7 @@ export function useAuth() {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: { emailRedirectTo: `${window.location.origin}/dogrulama` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/dogrulama` },
     });
     if (error) return { success: false, error: error.message };
     return { success: true };
