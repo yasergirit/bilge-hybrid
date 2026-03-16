@@ -1,7 +1,10 @@
-import Link from 'next/link';
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = { title: 'Hesabım' };
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useAuth } from '@/lib/commerce/auth-store';
+import { Button } from '@/components/ui/button';
 
 const accountLinks = [
   { href: '/hesabim/siparislerim', title: 'Siparişlerim', desc: 'Sipariş geçmişi ve takip', icon: 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z' },
@@ -10,9 +13,31 @@ const accountLinks = [
 ];
 
 export default function AccountPage() {
+  const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/giris?redirect=/hesabim');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <p className="text-neutral-500">Yönlendiriliyorsunuz...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-neutral-950 mb-8">Hesabım</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-neutral-950">Hesabım</h1>
+        <Button variant="ghost" size="sm" onClick={logout} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+          Çıkış Yap
+        </Button>
+      </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         {accountLinks.map((link) => (
@@ -32,12 +57,50 @@ export default function AccountPage() {
 
       <div className="mt-8 border border-neutral-200 rounded-lg p-6">
         <h2 className="font-semibold text-neutral-950 mb-4">Hesap Bilgileri</h2>
-        <div className="space-y-2 text-sm text-neutral-600">
-          <p><span className="text-neutral-400 w-20 inline-block">Ad:</span> Demo Kullanıcı</p>
-          <p><span className="text-neutral-400 w-20 inline-block">E-posta:</span> demo@bilgehybrid.com</p>
-          <p><span className="text-neutral-400 w-20 inline-block">Telefon:</span> 0500 000 00 00</p>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-neutral-400 text-xs">Ad Soyad</span>
+              <p className="text-neutral-800">{user.firstName} {user.lastName}</p>
+            </div>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">E-posta</span>
+            <p className="text-neutral-800">{user.email}</p>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">Telefon</span>
+            <p className="text-neutral-800">{user.phone || 'Belirtilmemiş'}</p>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">Giriş Yöntemi</span>
+            <p className="text-neutral-800">{user.provider === 'google' ? 'Google hesabı' : 'E-posta'}</p>
+          </div>
         </div>
       </div>
+
+      {/* Addresses */}
+      {user.addresses.length > 0 && (
+        <div className="mt-6 border border-neutral-200 rounded-lg p-6">
+          <h2 className="font-semibold text-neutral-950 mb-4">Kayıtlı Adresler</h2>
+          <div className="space-y-3">
+            {user.addresses.map((addr) => (
+              <div key={addr.id} className="border border-neutral-100 rounded-lg p-3 text-sm">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-neutral-950">{addr.title}</span>
+                  {addr.isDefault && (
+                    <span className="text-[10px] bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded">Varsayılan</span>
+                  )}
+                </div>
+                <p className="text-neutral-600">
+                  {[addr.neighborhood, addr.addressLine, addr.district, addr.city].filter(Boolean).join(', ')}
+                  {addr.postalCode && ` - ${addr.postalCode}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
