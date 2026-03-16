@@ -10,6 +10,13 @@ export interface Category {
   order: number;
 }
 
+export interface SubSubcategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+}
+
 export interface Subcategory {
   id: string;
   categoryId: string;
@@ -18,6 +25,7 @@ export interface Subcategory {
   description: string;
   image?: string;
   group?: string;
+  children?: SubSubcategory[];
   order: number;
 }
 

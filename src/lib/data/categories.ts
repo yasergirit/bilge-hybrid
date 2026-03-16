@@ -10,21 +10,35 @@ export const categories: Category[] = [
     image: '/images/categories/cases.jpg',
     order: 1,
     subcategories: [
-      // Gitar Kılıfları
-      { id: 'sub-1-1', categoryId: 'cat-1', name: 'Klasik Gitar Kılıfları 4/4', slug: 'klasik-gitar-kiliflari-4-4', description: 'Full-size klasik gitar kılıfları.', group: 'Gitar Kılıfları', order: 1 },
-      { id: 'sub-1-2', categoryId: 'cat-1', name: 'Klasik Gitar Kılıfları 3/4', slug: 'klasik-gitar-kiliflari-3-4', description: '3/4 boyut klasik gitar kılıfları.', group: 'Gitar Kılıfları', order: 2 },
-      { id: 'sub-1-3', categoryId: 'cat-1', name: 'Akustik Gitar Kılıfları 4/4', slug: 'akustik-gitar-kiliflari-4-4', description: 'Full-size akustik gitar kılıfları.', group: 'Gitar Kılıfları', order: 3 },
-      { id: 'sub-1-4', categoryId: 'cat-1', name: 'Elektro Gitar Kılıfı 4/4', slug: 'elektro-gitar-kilifi-4-4', description: 'Elektro gitar kılıfları.', group: 'Gitar Kılıfları', order: 4 },
-      // Ukulele Kılıfları
-      { id: 'sub-1-5', categoryId: 'cat-1', name: 'Soprano Ukulele Kılıfları', slug: 'soprano-ukulele-kiliflari', description: 'Soprano ukulele için özel kılıflar.', group: 'Ukulele Kılıfları', order: 5 },
-      { id: 'sub-1-6', categoryId: 'cat-1', name: 'Concert Ukulele Kılıfları', slug: 'concert-ukulele-kiliflari', description: 'Concert ukulele için özel kılıflar.', group: 'Ukulele Kılıfları', order: 6 },
-      // Bağlama Kılıfları
-      { id: 'sub-1-7', categoryId: 'cat-1', name: 'Kısa Sap Bağlama Kılıfları', slug: 'kisa-sap-baglama-kiliflari', description: 'Kısa sap bağlama kılıfları.', group: 'Bağlama Kılıfları', order: 7 },
-      { id: 'sub-1-8', categoryId: 'cat-1', name: 'Uzun Sap Bağlama Kılıfları', slug: 'uzun-sap-baglama-kiliflari', description: 'Uzun sap bağlama kılıfları.', group: 'Bağlama Kılıfları', order: 8 },
-      // Diğer kılıflar
-      { id: 'sub-1-9', categoryId: 'cat-1', name: 'Kalimba Kılıfları', slug: 'kalimba-kiliflari', description: 'Kalimba kılıfları.', order: 9 },
-      { id: 'sub-1-10', categoryId: 'cat-1', name: 'Kemençe Kılıfları', slug: 'kemence-kiliflari', description: 'Kemençe kılıfları.', order: 10 },
-      { id: 'sub-1-11', categoryId: 'cat-1', name: 'Cajon Kılıfları', slug: 'cajon-kiliflari', description: 'Cajon kılıfları.', order: 11 },
+      {
+        id: 'sub-1-1', categoryId: 'cat-1', name: 'Gitar Kılıfları', slug: 'gitar-kiliflari',
+        description: 'Klasik, akustik ve elektro gitar kılıfları.', order: 1,
+        children: [
+          { id: 'sub-1-1-1', name: 'Klasik Gitar Kılıfları 4/4', slug: 'klasik-gitar-kiliflari-4-4', description: 'Full-size klasik gitar kılıfları.' },
+          { id: 'sub-1-1-2', name: 'Klasik Gitar Kılıfları 3/4', slug: 'klasik-gitar-kiliflari-3-4', description: '3/4 boyut klasik gitar kılıfları.' },
+          { id: 'sub-1-1-3', name: 'Akustik Gitar Kılıfları 4/4', slug: 'akustik-gitar-kiliflari-4-4', description: 'Full-size akustik gitar kılıfları.' },
+          { id: 'sub-1-1-4', name: 'Elektro Gitar Kılıfı 4/4', slug: 'elektro-gitar-kilifi-4-4', description: 'Elektro gitar kılıfları.' },
+        ],
+      },
+      {
+        id: 'sub-1-2', categoryId: 'cat-1', name: 'Ukulele Kılıfları', slug: 'ukulele-kiliflari',
+        description: 'Soprano ve concert ukulele kılıfları.', order: 2,
+        children: [
+          { id: 'sub-1-2-1', name: 'Soprano Ukulele Kılıfları', slug: 'soprano-ukulele-kiliflari', description: 'Soprano ukulele için özel kılıflar.' },
+          { id: 'sub-1-2-2', name: 'Concert Ukulele Kılıfları', slug: 'concert-ukulele-kiliflari', description: 'Concert ukulele için özel kılıflar.' },
+        ],
+      },
+      {
+        id: 'sub-1-3', categoryId: 'cat-1', name: 'Bağlama Kılıfları', slug: 'baglama-kiliflari',
+        description: 'Kısa sap ve uzun sap bağlama kılıfları.', order: 3,
+        children: [
+          { id: 'sub-1-3-1', name: 'Kısa Sap Bağlama Kılıfları', slug: 'kisa-sap-baglama-kiliflari', description: 'Kısa sap bağlama kılıfları.' },
+          { id: 'sub-1-3-2', name: 'Uzun Sap Bağlama Kılıfları', slug: 'uzun-sap-baglama-kiliflari', description: 'Uzun sap bağlama kılıfları.' },
+        ],
+      },
+      { id: 'sub-1-4', categoryId: 'cat-1', name: 'Kalimba Kılıfları', slug: 'kalimba-kiliflari', description: 'Kalimba kılıfları.', order: 4 },
+      { id: 'sub-1-5', categoryId: 'cat-1', name: 'Kemençe Kılıfları', slug: 'kemence-kiliflari', description: 'Kemençe kılıfları.', order: 5 },
+      { id: 'sub-1-6', categoryId: 'cat-1', name: 'Cajon Kılıfları', slug: 'cajon-kiliflari', description: 'Cajon kılıfları.', order: 6 },
     ],
   },
 

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { categories, getSubcategoryBySlug } from '@/lib/data/categories';
 import { getProductsBySubcategory } from '@/lib/data/products';
@@ -36,6 +37,7 @@ export default async function SubcategoryPage({ params }: Props) {
 
   const { category, subcategory } = result;
   const products = getProductsBySubcategory(subcategory.id);
+  const children = subcategory.children;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -50,6 +52,22 @@ export default async function SubcategoryPage({ params }: Props) {
         <h1 className="text-2xl font-bold text-neutral-950">{subcategory.name}</h1>
         <p className="mt-2 text-neutral-600 text-sm max-w-2xl">{subcategory.description}</p>
       </div>
+
+      {/* Alt kategoriler (3. seviye) — sadece varsa göster */}
+      {children && children.length > 0 && (
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          {children.map((child) => (
+            <Link
+              key={child.id}
+              href={`/kategori/${category.slug}/${subcategory.slug}?filtre=${child.slug}`}
+              className="border border-neutral-200 rounded-lg px-4 py-3 hover:border-neutral-400 hover:bg-neutral-50 transition-colors"
+            >
+              <h3 className="text-sm font-medium text-neutral-800">{child.name}</h3>
+              <p className="text-xs text-neutral-500 mt-0.5">{child.description}</p>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {products.length > 0 && (
         <div className="mt-8">
@@ -71,7 +89,7 @@ export default async function SubcategoryPage({ params }: Props) {
         </div>
       )}
 
-      {products.length === 0 && (
+      {products.length === 0 && !children?.length && (
         <div className="mt-10 text-center py-16">
           <p className="text-neutral-500">Bu kategoride henüz ürün bulunmamaktadır.</p>
         </div>
