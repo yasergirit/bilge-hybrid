@@ -23,17 +23,9 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
+  const [showResend, setShowResend] = useState(false);
 
   const redirect = searchParams.get('redirect') || '/hesabim';
-  const provider = searchParams.get('provider');
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -41,52 +33,26 @@ function LoginContent() {
     }
   }, [isAuthenticated, router, redirect]);
 
-  useEffect(() => {
-    if (provider === 'google') {
-      handleGoogleLogin();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider]);
-
-  const handleGoogleLogin = () => {
-    // TODO: Replace with real Google OAuth flow
-    const result = loginWithGoogle();
-    if (result.success) {
-      router.push(redirect);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShowResend(false);
     setLoading(true);
 
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 500));
-
-    const result = login(email, password);
+    const result = await login(email, password);
     if (result.success) {
       router.push(redirect);
     } else {
       setError(result.error || 'Giriş başarısız.');
-      if (result.needsVerification) {
-        setNeedsVerification(true);
+      if (result.error?.includes('doğrulanmamış')) {
+        setShowResend(true);
       }
     }
     setLoading(false);
   };
 
-  const resendVerification = async () => {
-    setLoading(true);
-    try {
-      await fetch('/api/auth/send-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-    } catch {}
-    setLoading(false);
-    setResendCooldown(60);
+  const handleGoogle = async () => {
+    await loginWithGoogle();
   };
 
   return (
@@ -98,7 +64,7 @@ function LoginContent() {
 
       {/* Google login */}
       <button
-        onClick={handleGoogleLogin}
+        onClick={handleGoogle}
         className="flex items-center justify-center gap-3 w-full h-12 border border-neutral-300 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors mb-4"
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -110,55 +76,23 @@ function LoginContent() {
         Google ile giriş yap
       </button>
 
-      {/* Divider */}
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-200" /></div>
         <div className="relative flex justify-center text-xs"><span className="bg-white px-3 text-neutral-400">veya e-posta ile</span></div>
       </div>
 
-      {/* Email login form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">
             <p>{error}</p>
-            {needsVerification && (
-              <button
-                onClick={resendVerification}
-                disabled={loading || resendCooldown > 0}
-                className="mt-2 text-xs text-red-800 underline underline-offset-2 hover:text-red-950 disabled:opacity-50"
-              >
-                {resendCooldown > 0 ? `Tekrar gönder (${resendCooldown}s)` : 'Doğrulama e-postasını tekrar gönder'}
-              </button>
+            {showResend && (
+              <p className="mt-2 text-xs">Doğrulama e-postası için kayıt olduğunuz e-postayı kontrol edin.</p>
             )}
           </div>
         )}
 
-        <Input
-          id="email"
-          label="E-posta Adresi"
-          type="email"
-          placeholder="ornek@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <Input
-          id="password"
-          label="Şifre"
-          type="password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-
-        <div className="flex items-center justify-between text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="accent-neutral-950 rounded" />
-            <span className="text-neutral-600">Beni hatırla</span>
-          </label>
-          <a href="#" className="text-neutral-500 hover:text-neutral-950 transition-colors">Şifremi unuttum</a>
-        </div>
+        <Input id="email" label="E-posta Adresi" type="email" placeholder="ornek@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Input id="password" label="Şifre" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
 
         <Button className="w-full" size="lg" disabled={loading}>
           {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
@@ -172,13 +106,10 @@ function LoginContent() {
         </p>
       </div>
 
-      {/* Guest checkout hint */}
       <div className="mt-6 border-t border-neutral-200 pt-6 text-center">
         <p className="text-xs text-neutral-400">
           Üye olmadan da alışveriş yapabilirsiniz.{' '}
-          <Link href="/sepet" className="text-neutral-600 hover:text-neutral-950 underline underline-offset-2">
-            Misafir olarak devam edin
-          </Link>
+          <Link href="/sepet" className="text-neutral-600 hover:text-neutral-950 underline underline-offset-2">Misafir olarak devam edin</Link>
         </p>
       </div>
     </div>

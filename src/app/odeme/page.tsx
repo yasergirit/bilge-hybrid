@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/commerce/cart-store';
-import { useAuth } from '@/lib/commerce/auth-store';
+import { useAuth, type UserAddress } from '@/lib/commerce/auth-store';
 import { getActivePaymentProviders } from '@/lib/commerce/payment';
 import { formatPrice } from '@/lib/utils/format';
 import { Button } from '@/components/ui/button';
@@ -13,14 +13,21 @@ import { Input } from '@/components/ui/input';
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, shippingEstimate, discount, total, clearCart } = useCart();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, getAddresses } = useAuth();
   const paymentProviders = getActivePaymentProviders();
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
 
   const [checkoutMode, setCheckoutMode] = useState<'member' | 'guest'>(isAuthenticated ? 'member' : 'guest');
   const [step, setStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState(paymentProviders[0]?.id || '');
   const [processing, setProcessing] = useState(false);
   const [agreements, setAgreements] = useState({ sales: false, info: false });
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      getAddresses().then(setSavedAddresses);
+    }
+  }, [isAuthenticated, getAddresses]);
 
   // Guest info
   const [guestFirstName, setGuestFirstName] = useState('');
@@ -150,9 +157,9 @@ export default function CheckoutPage() {
                     <h2 className="text-lg font-semibold mb-4">Teslimat Adresi</h2>
 
                     {/* Show saved addresses if logged in */}
-                    {isAuthenticated && user && user.addresses.length > 0 && (
+                    {isAuthenticated && user && savedAddresses.length > 0 && (
                       <div className="mb-4 space-y-2">
-                        {user.addresses.map((addr) => (
+                        {savedAddresses.map((addr) => (
                           <label key={addr.id} className="flex items-start gap-3 p-3 border border-neutral-200 rounded-lg cursor-pointer hover:border-neutral-400 transition-colors">
                             <input type="radio" name="savedAddress" defaultChecked={addr.isDefault} className="mt-1 accent-neutral-950" />
                             <div className="text-sm">
@@ -170,7 +177,7 @@ export default function CheckoutPage() {
                     )}
 
                     {/* Address form (always shown for guest, or if no saved addresses) */}
-                    {(!isAuthenticated || !user || user.addresses.length === 0) && (
+                    {(!isAuthenticated || !user || savedAddresses.length === 0) && (
                       <div className="grid sm:grid-cols-2 gap-4">
                         <div className="sm:col-span-2">
                           <Input id="addressTitle" label="Adres Başlığı" placeholder="Ev, İş vb." />

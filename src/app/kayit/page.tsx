@@ -9,140 +9,26 @@ import { Input } from '@/components/ui/input';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, loginWithGoogle, isAuthenticated } = useAuth();
+  const { register, loginWithGoogle, isAuthenticated, resendVerification } = useAuth();
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Step 1 fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  // Step 2 fields (address)
-  const [addressTitle, setAddressTitle] = useState('Ev');
-  const [city, setCity] = useState('');
-  const [district, setDistrict] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
-  const [addressLine, setAddressLine] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-
-  // Agreements
   const [kvkkAccepted, setKvkkAccepted] = useState(false);
-  const [marketingAccepted, setMarketingAccepted] = useState(false);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push('/hesabim');
-    }
-  }, [isAuthenticated, router]);
-
-  const handleGoogleRegister = () => {
-    const result = loginWithGoogle();
-    if (result.success) {
-      router.push('/hesabim');
-    }
-  };
-
-  const validateStep1 = (): boolean => {
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim() || !password) {
-      setError('Lütfen tüm zorunlu alanları doldurun.');
-      return false;
-    }
-    if (password.length < 6) {
-      setError('Şifre en az 6 karakter olmalıdır.');
-      return false;
-    }
-    if (password !== confirmPassword) {
-      setError('Şifreler eşleşmiyor.');
-      return false;
-    }
-    if (!kvkkAccepted) {
-      setError('KVKK Aydınlatma Metni\'ni onaylamanız gerekmektedir.');
-      return false;
-    }
-    setError('');
-    return true;
-  };
-
-  const handleStep1Submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateStep1()) {
-      setStep(2);
-    }
-  };
-
-  const doRegister = async (withAddress: boolean) => {
-    setLoading(true);
-    setError('');
-
-    const result = register({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      password,
-      address: withAddress && city ? {
-        title: addressTitle,
-        city,
-        district,
-        neighborhood,
-        addressLine,
-        postalCode,
-      } : undefined,
-    });
-
-    if (!result.success) {
-      setError(result.error || 'Kayıt başarısız.');
-      setLoading(false);
-      return;
-    }
-
-    // Send verification email
-    try {
-      const res = await fetch('/api/auth/send-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const data = await res.json();
-      if (!data.success) {
-        console.error('Verification email error:', data.error);
-      }
-    } catch (err) {
-      console.error('Failed to send verification email:', err);
-    }
-
-    setLoading(false);
-    setStep(3); // Show "check your email" screen
-  };
-
-  const handleFinalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await doRegister(true);
-  };
-
-  const skipAddress = async () => {
-    await doRegister(false);
-  };
-
-  const resendVerification = async () => {
-    setLoading(true);
-    try {
-      await fetch('/api/auth/send-verification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-    } catch {}
-    setLoading(false);
-    setResendCooldown(60);
-  };
 
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (isAuthenticated && step !== 2) {
+      router.push('/hesabim');
+    }
+  }, [isAuthenticated, router, step]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -150,33 +36,70 @@ export default function RegisterPage() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
+  const handleGoogle = async () => {
+    await loginWithGoogle();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+      setError('Lütfen tüm zorunlu alanları doldurun.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Şifreler eşleşmiyor.');
+      return;
+    }
+    if (!kvkkAccepted) {
+      setError('KVKK Aydınlatma Metni\'ni onaylamanız gerekmektedir.');
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await register({
+      email: email.trim(),
+      password,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      setStep(2); // Show "check your email" screen
+    } else {
+      setError(result.error || 'Kayıt başarısız.');
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    await resendVerification(email.trim());
+    setLoading(false);
+    setResendCooldown(60);
+  };
+
   return (
     <div className="max-w-lg mx-auto px-4 py-12">
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-neutral-950">Kayıt Ol</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          {step === 1 && 'Hesap bilgilerinizi girin.'}
-          {step === 2 && 'Adres bilgilerinizi ekleyin (isteğe bağlı).'}
-          {step === 3 && 'E-posta adresinizi doğrulayın.'}
+          {step === 1 ? 'Hesap bilgilerinizi girin.' : 'E-posta adresinizi doğrulayın.'}
         </p>
-      </div>
-
-      {/* Step indicator */}
-      <div className="flex items-center justify-center gap-2 mb-8">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${step >= 1 ? 'bg-neutral-950 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
-          {step > 1 ? '✓' : '1'}
-        </div>
-        <div className="w-12 h-px bg-neutral-300" />
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${step >= 2 ? 'bg-neutral-950 text-white' : 'bg-neutral-200 text-neutral-500'}`}>
-          2
-        </div>
       </div>
 
       {step === 1 && (
         <>
-          {/* Google register */}
           <button
-            onClick={handleGoogleRegister}
+            onClick={handleGoogle}
             className="flex items-center justify-center gap-3 w-full h-12 border border-neutral-300 rounded-lg text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors mb-4"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -193,7 +116,7 @@ export default function RegisterPage() {
             <div className="relative flex justify-center text-xs"><span className="bg-white px-3 text-neutral-400">veya e-posta ile</span></div>
           </div>
 
-          <form onSubmit={handleStep1Submit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
             )}
@@ -202,141 +125,52 @@ export default function RegisterPage() {
               <Input id="firstName" label="Ad *" placeholder="Adınız" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
               <Input id="lastName" label="Soyad *" placeholder="Soyadınız" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
             </div>
-
             <Input id="email" label="E-posta Adresi *" type="email" placeholder="ornek@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-
             <Input id="phone" label="Telefon Numarası *" type="tel" placeholder="05XX XXX XX XX" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-
             <Input id="password" label="Şifre *" type="password" placeholder="En az 6 karakter" value={password} onChange={(e) => setPassword(e.target.value)} required />
-
             <Input id="confirmPassword" label="Şifre Tekrar *" type="password" placeholder="Şifrenizi tekrar girin" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
 
-            {/* Agreements */}
-            <div className="space-y-3 pt-2">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={kvkkAccepted}
-                  onChange={(e) => setKvkkAccepted(e.target.checked)}
-                  className="mt-0.5 accent-neutral-950"
-                  required
-                />
-                <span className="text-xs text-neutral-600 leading-relaxed">
-                  <Link href="/sayfa/kvkk-aydinlatma-metni" target="_blank" className="underline font-medium hover:text-neutral-950">KVKK Aydınlatma Metni</Link>&apos;ni ve{' '}
-                  <Link href="/sayfa/gizlilik-politikasi" target="_blank" className="underline font-medium hover:text-neutral-950">Gizlilik Politikası</Link>&apos;nı okudum, kabul ediyorum. *
-                </span>
-              </label>
+            <label className="flex items-start gap-2.5 cursor-pointer pt-2">
+              <input type="checkbox" checked={kvkkAccepted} onChange={(e) => setKvkkAccepted(e.target.checked)} className="mt-0.5 accent-neutral-950" required />
+              <span className="text-xs text-neutral-600 leading-relaxed">
+                <Link href="/sayfa/kvkk-aydinlatma-metni" target="_blank" className="underline font-medium hover:text-neutral-950">KVKK Aydınlatma Metni</Link>&apos;ni ve{' '}
+                <Link href="/sayfa/gizlilik-politikasi" target="_blank" className="underline font-medium hover:text-neutral-950">Gizlilik Politikası</Link>&apos;nı okudum, kabul ediyorum. *
+              </span>
+            </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={marketingAccepted}
-                  onChange={(e) => setMarketingAccepted(e.target.checked)}
-                  className="mt-0.5 accent-neutral-950"
-                />
-                <span className="text-xs text-neutral-600 leading-relaxed">
-                  Kampanya ve fırsatlardan haberdar olmak için e-posta ve SMS almak istiyorum.
-                </span>
-              </label>
-            </div>
-
-            <Button className="w-full" size="lg">
-              Devam Et
+            <Button className="w-full" size="lg" disabled={loading}>
+              {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
             </Button>
           </form>
         </>
       )}
 
+      {/* Step 2: Email verification pending */}
       {step === 2 && (
-        <form onSubmit={handleFinalSubmit} className="space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
-          )}
-
-          <div className="border border-neutral-200 rounded-lg p-5">
-            <h2 className="text-sm font-semibold text-neutral-950 mb-4">Teslimat Adresi</h2>
-            <p className="text-xs text-neutral-500 mb-4">Adres bilgilerinizi şimdi ekleyebilir veya daha sonra hesabınızdan ekleyebilirsiniz.</p>
-
-            <div className="space-y-4">
-              <Input id="addressTitle" label="Adres Başlığı" placeholder="Ev, İş vb." value={addressTitle} onChange={(e) => setAddressTitle(e.target.value)} />
-
-              <div className="grid grid-cols-2 gap-4">
-                <Input id="city" label="İl" placeholder="İstanbul" value={city} onChange={(e) => setCity(e.target.value)} />
-                <Input id="district" label="İlçe" placeholder="Kadıköy" value={district} onChange={(e) => setDistrict(e.target.value)} />
-              </div>
-
-              <Input id="neighborhood" label="Mahalle" placeholder="Mahalle adı" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} />
-
-              <div>
-                <label htmlFor="addressLine" className="block text-sm font-medium text-neutral-700 mb-1.5">Açık Adres</label>
-                <textarea
-                  id="addressLine"
-                  rows={3}
-                  placeholder="Sokak, bina no, daire no..."
-                  value={addressLine}
-                  onChange={(e) => setAddressLine(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-950"
-                />
-              </div>
-
-              <Input id="postalCode" label="Posta Kodu" placeholder="34000" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button variant="outline" type="button" onClick={() => setStep(1)} className="flex-1">
-              Geri
-            </Button>
-            <Button className="flex-1" size="lg" disabled={loading}>
-              {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
-            </Button>
-          </div>
-
-          <button
-            type="button"
-            onClick={skipAddress}
-            disabled={loading}
-            className="w-full text-sm text-neutral-500 hover:text-neutral-950 underline underline-offset-4 transition-colors py-2"
-          >
-            Adres eklemeden devam et
-          </button>
-        </form>
-      )}
-
-      {/* Step 3: Email verification pending */}
-      {step === 3 && (
         <div className="text-center">
           <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
           </div>
-
           <h2 className="text-xl font-bold text-neutral-950 mb-2">E-postanızı Kontrol Edin</h2>
-          <p className="text-sm text-neutral-500 mb-1">
-            Doğrulama linki aşağıdaki adrese gönderildi:
-          </p>
+          <p className="text-sm text-neutral-500 mb-1">Doğrulama linki aşağıdaki adrese gönderildi:</p>
           <p className="text-sm font-semibold text-neutral-950 mb-6">{email}</p>
-
           <div className="bg-neutral-50 rounded-lg p-4 text-sm text-neutral-600 mb-6">
-            <p>E-postanızdaki linke tıklayarak hesabınızı aktifleştirin. Link 1 saat geçerlidir.</p>
+            <p>E-postanızdaki linke tıklayarak hesabınızı aktifleştirin.</p>
           </div>
-
           <p className="text-xs text-neutral-400 mb-4">E-posta gelmedi mi? Spam klasörünüzü kontrol edin.</p>
-
           <button
-            onClick={resendVerification}
+            onClick={handleResend}
             disabled={loading || resendCooldown > 0}
-            className="text-sm text-neutral-600 hover:text-neutral-950 underline underline-offset-4 transition-colors disabled:opacity-50 disabled:no-underline"
+            className="text-sm text-neutral-600 hover:text-neutral-950 underline underline-offset-4 transition-colors disabled:opacity-50"
           >
-            {resendCooldown > 0
-              ? `Tekrar gönder (${resendCooldown}s)`
-              : 'Doğrulama e-postasını tekrar gönder'}
+            {resendCooldown > 0 ? `Tekrar gönder (${resendCooldown}s)` : 'Doğrulama e-postasını tekrar gönder'}
           </button>
         </div>
       )}
 
-      {step !== 3 && (
+      {step === 1 && (
         <div className="mt-8 text-center">
           <p className="text-sm text-neutral-500">
             Zaten hesabınız var mı?{' '}

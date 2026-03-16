@@ -1,6 +1,18 @@
 'use client';
 
-import { useSyncExternalStore, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  emailVerified: boolean;
+  provider: string;
+}
 
 export interface UserAddress {
   id: string;
@@ -13,234 +25,195 @@ export interface UserAddress {
   isDefault: boolean;
 }
 
-export interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  addresses: UserAddress[];
-  createdAt: string;
-  provider: 'email' | 'google';
-  emailVerified: boolean;
-}
-
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-}
-
-const STORAGE_KEY = 'bilge-hybrid-auth';
-
-function getInitialState(): AuthState {
-  if (typeof window === 'undefined') return { user: null, isAuthenticated: false };
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return { user: parsed, isAuthenticated: true };
-    }
-    return { user: null, isAuthenticated: false };
-  } catch {
-    return { user: null, isAuthenticated: false };
-  }
-}
-
-let state: AuthState = getInitialState();
-const listeners = new Set<() => void>();
-
-function emitChange() {
-  if (typeof window !== 'undefined') {
-    if (state.user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.user));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }
-  listeners.forEach((l) => l());
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function getSnapshot(): AuthState {
-  return state;
-}
-
-const SERVER_SNAPSHOT: AuthState = { user: null, isAuthenticated: false };
-
-function getServerSnapshot(): AuthState {
-  return SERVER_SNAPSHOT;
-}
-
-export interface RegisterData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  password: string;
-  address?: {
-    title: string;
-    city: string;
-    district: string;
-    neighborhood: string;
-    addressLine: string;
-    postalCode: string;
+function mapUser(user: SupabaseUser, profile?: { first_name: string; last_name: string; phone: string } | null): UserProfile {
+  return {
+    id: user.id,
+    email: user.email || '',
+    firstName: profile?.first_name || user.user_metadata?.first_name || '',
+    lastName: profile?.last_name || user.user_metadata?.last_name || '',
+    phone: profile?.phone || user.user_metadata?.phone || '',
+    emailVerified: !!user.email_confirmed_at,
+    provider: user.app_metadata?.provider || 'email',
   };
 }
 
 export function useAuth() {
-  const auth = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  const login = useCallback((email: string, _password: string): { success: boolean; error?: string; needsVerification?: boolean } => {
-    // TODO: Replace with real API call
-    const registry = getRegistry();
-    const existing = registry.find((u) => u.email === email);
-    if (existing) {
-      if (!existing.emailVerified && existing.provider === 'email') {
-        return { success: false, error: 'E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı kontrol edin.', needsVerification: true };
+  // Load user on mount and listen for auth changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          // Fetch profile from DB
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, phone')
+            .eq('id', session.user.id)
+            .single();
+          setUser(mapUser(session.user, profile));
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
       }
-      state = { user: existing, isAuthenticated: true };
-      emitChange();
-      return { success: true };
-    }
-    return { success: false, error: 'E-posta veya şifre hatalı.' };
-  }, []);
+    );
 
-  const loginWithGoogle = useCallback((): { success: boolean } => {
-    // TODO: Replace with real Google OAuth
-    // For demo: create a mock Google user
-    const user: User = {
-      id: `google-${Date.now()}`,
-      firstName: 'Google',
-      lastName: 'Kullanıcı',
-      email: 'kullanici@gmail.com',
-      phone: '',
-      addresses: [],
-      createdAt: new Date().toISOString(),
-      provider: 'google',
-      emailVerified: true,
-    };
-    state = { user, isAuthenticated: true };
-    addToRegistry(user);
-    emitChange();
-    return { success: true };
-  }, []);
+    // Initial session check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, phone')
+          .eq('id', session.user.id)
+          .single();
+        setUser(mapUser(session.user, profile));
+      }
+      setLoading(false);
+    });
 
-  const register = useCallback((data: RegisterData): { success: boolean; error?: string } => {
-    // TODO: Replace with real API call
-    const registry = getRegistry();
-    if (registry.find((u) => u.email === data.email)) {
-      return { success: false, error: 'Bu e-posta adresi zaten kayıtlı.' };
-    }
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
-    const user: User = {
-      id: `user-${Date.now()}`,
-      firstName: data.firstName,
-      lastName: data.lastName,
+  const register = useCallback(async (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signUp({
       email: data.email,
-      phone: data.phone,
-      emailVerified: false,
-      addresses: data.address
-        ? [{
-            id: `addr-${Date.now()}`,
-            title: data.address.title || 'Ev',
-            city: data.address.city,
-            district: data.address.district,
-            neighborhood: data.address.neighborhood,
-            addressLine: data.address.addressLine,
-            postalCode: data.address.postalCode,
-            isDefault: true,
-          }]
-        : [],
-      createdAt: new Date().toISOString(),
-      provider: 'email',
-    };
+      password: data.password,
+      options: {
+        data: {
+          first_name: data.firstName,
+          last_name: data.lastName,
+          phone: data.phone,
+        },
+        emailRedirectTo: `${window.location.origin}/dogrulama`,
+      },
+    });
 
-    addToRegistry(user);
-    // Do NOT auto-login — user must verify email first
-    return { success: true };
-  }, []);
-
-  const verifyEmail = useCallback((email: string) => {
-    const registry = getRegistry();
-    const user = registry.find((u) => u.email === email);
-    if (user) {
-      user.emailVerified = true;
-      updateRegistry(user);
-      // Auto-login after verification
-      state = { user, isAuthenticated: true };
-      emitChange();
+    if (error) {
+      if (error.message.includes('already registered')) {
+        return { success: false, error: 'Bu e-posta adresi zaten kayıtlı.' };
+      }
+      return { success: false, error: error.message };
     }
-  }, []);
 
-  const logout = useCallback(() => {
-    state = { user: null, isAuthenticated: false };
-    emitChange();
-  }, []);
+    return { success: true };
+  }, [supabase]);
 
-  const updateProfile = useCallback((updates: Partial<Pick<User, 'firstName' | 'lastName' | 'phone'>>) => {
-    if (!state.user) return;
-    state = {
-      ...state,
-      user: { ...state.user, ...updates },
-    };
-    updateRegistry(state.user!);
-    emitChange();
-  }, []);
+  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-  const addAddress = useCallback((address: Omit<UserAddress, 'id'>) => {
-    if (!state.user) return;
-    const newAddress: UserAddress = { ...address, id: `addr-${Date.now()}` };
-    state = {
-      ...state,
-      user: { ...state.user, addresses: [...state.user.addresses, newAddress] },
-    };
-    updateRegistry(state.user!);
-    emitChange();
-  }, []);
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        return { success: false, error: 'E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı kontrol edin.' };
+      }
+      if (error.message.includes('Invalid login credentials')) {
+        return { success: false, error: 'E-posta veya şifre hatalı.' };
+      }
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  }, [supabase]);
+
+  const loginWithGoogle = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/dogrulama`,
+      },
+    });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }, [supabase]);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  }, [supabase]);
+
+  const updateProfile = useCallback(async (updates: { firstName?: string; lastName?: string; phone?: string }) => {
+    if (!user) return;
+
+    const dbUpdates: Record<string, string> = {};
+    if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
+    if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+
+    await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
+
+    setUser((prev) => prev ? {
+      ...prev,
+      firstName: updates.firstName ?? prev.firstName,
+      lastName: updates.lastName ?? prev.lastName,
+      phone: updates.phone ?? prev.phone,
+    } : null);
+  }, [supabase, user]);
+
+  const resendVerification = useCallback(async (email: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/dogrulama` },
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }, [supabase]);
+
+  // Address operations
+  const getAddresses = useCallback(async (): Promise<UserAddress[]> => {
+    if (!user) return [];
+    const { data } = await supabase
+      .from('addresses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('is_default', { ascending: false });
+
+    return (data || []).map((a) => ({
+      id: a.id,
+      title: a.title,
+      city: a.city,
+      district: a.district,
+      neighborhood: a.neighborhood || '',
+      addressLine: a.address_line,
+      postalCode: a.postal_code || '',
+      isDefault: a.is_default,
+    }));
+  }, [supabase, user]);
+
+  const addAddress = useCallback(async (address: Omit<UserAddress, 'id'>) => {
+    if (!user) return;
+    await supabase.from('addresses').insert({
+      user_id: user.id,
+      title: address.title,
+      city: address.city,
+      district: address.district,
+      neighborhood: address.neighborhood,
+      address_line: address.addressLine,
+      postal_code: address.postalCode,
+      is_default: address.isDefault,
+    });
+  }, [supabase, user]);
 
   return {
-    user: auth.user,
-    isAuthenticated: auth.isAuthenticated,
+    user,
+    isAuthenticated: !!user,
+    loading,
+    register,
     login,
     loginWithGoogle,
-    register,
-    verifyEmail,
     logout,
     updateProfile,
+    resendVerification,
+    getAddresses,
     addAddress,
   };
-}
-
-// Simple localStorage user registry for demo
-const REGISTRY_KEY = 'bilge-hybrid-users';
-
-function getRegistry(): User[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(REGISTRY_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function addToRegistry(user: User) {
-  if (typeof window === 'undefined') return;
-  const registry = getRegistry();
-  registry.push(user);
-  localStorage.setItem(REGISTRY_KEY, JSON.stringify(registry));
-}
-
-function updateRegistry(user: User) {
-  if (typeof window === 'undefined') return;
-  const registry = getRegistry();
-  const index = registry.findIndex((u) => u.id === user.id);
-  if (index >= 0) {
-    registry[index] = user;
-    localStorage.setItem(REGISTRY_KEY, JSON.stringify(registry));
-  }
 }

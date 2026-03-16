@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { useAuth } from '@/lib/commerce/auth-store';
+import { useEffect, useState } from 'react';
+import { useAuth, type UserAddress } from '@/lib/commerce/auth-store';
 import { Button } from '@/components/ui/button';
 
 const accountLinks = [
@@ -14,18 +14,25 @@ const accountLinks = [
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, loading, logout, getAddresses } = useAuth();
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!loading && !isAuthenticated) {
       router.push('/giris?redirect=/hesabim');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
-  if (!isAuthenticated || !user) {
+  useEffect(() => {
+    if (isAuthenticated) {
+      getAddresses().then(setAddresses);
+    }
+  }, [isAuthenticated, getAddresses]);
+
+  if (loading || !isAuthenticated || !user) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-        <p className="text-neutral-500">Yönlendiriliyorsunuz...</p>
+        <p className="text-neutral-500">Yükleniyor...</p>
       </div>
     );
   }
@@ -41,11 +48,7 @@ export default function AccountPage() {
 
       <div className="grid sm:grid-cols-2 gap-4">
         {accountLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="border border-neutral-200 rounded-lg p-5 hover:border-neutral-400 transition-colors group"
-          >
+          <Link key={link.href} href={link.href} className="border border-neutral-200 rounded-lg p-5 hover:border-neutral-400 transition-colors group">
             <svg className="w-6 h-6 text-neutral-400 group-hover:text-neutral-950 transition-colors mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={link.icon} />
             </svg>
@@ -58,11 +61,9 @@ export default function AccountPage() {
       <div className="mt-8 border border-neutral-200 rounded-lg p-6">
         <h2 className="font-semibold text-neutral-950 mb-4">Hesap Bilgileri</h2>
         <div className="space-y-3 text-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-neutral-400 text-xs">Ad Soyad</span>
-              <p className="text-neutral-800">{user.firstName} {user.lastName}</p>
-            </div>
+          <div>
+            <span className="text-neutral-400 text-xs">Ad Soyad</span>
+            <p className="text-neutral-800">{user.firstName} {user.lastName}</p>
           </div>
           <div>
             <span className="text-neutral-400 text-xs">E-posta</span>
@@ -79,22 +80,18 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* Addresses */}
-      {user.addresses.length > 0 && (
+      {addresses.length > 0 && (
         <div className="mt-6 border border-neutral-200 rounded-lg p-6">
           <h2 className="font-semibold text-neutral-950 mb-4">Kayıtlı Adresler</h2>
           <div className="space-y-3">
-            {user.addresses.map((addr) => (
+            {addresses.map((addr) => (
               <div key={addr.id} className="border border-neutral-100 rounded-lg p-3 text-sm">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-neutral-950">{addr.title}</span>
-                  {addr.isDefault && (
-                    <span className="text-[10px] bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded">Varsayılan</span>
-                  )}
+                  {addr.isDefault && <span className="text-[10px] bg-neutral-100 text-neutral-600 px-1.5 py-0.5 rounded">Varsayılan</span>}
                 </div>
                 <p className="text-neutral-600">
                   {[addr.neighborhood, addr.addressLine, addr.district, addr.city].filter(Boolean).join(', ')}
-                  {addr.postalCode && ` - ${addr.postalCode}`}
                 </p>
               </div>
             ))}
