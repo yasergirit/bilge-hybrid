@@ -17,6 +17,7 @@ export interface Subcategory {
   slug: string;
   description: string;
   image?: string;
+  group?: string;
   order: number;
 }
 
