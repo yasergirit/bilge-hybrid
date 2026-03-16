@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth, type UserAddress } from '@/lib/commerce/auth-store';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import type { UserProfile } from '@/lib/commerce/auth-store';
 
 const accountLinks = [
   { href: '/hesabim/siparislerim', title: 'Siparişlerim', desc: 'Sipariş geçmişi ve takip', icon: 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z' },
@@ -14,7 +16,7 @@ const accountLinks = [
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, isAuthenticated, loading, logout, getAddresses } = useAuth();
+  const { user, isAuthenticated, loading, logout, getAddresses, updateProfile } = useAuth();
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
 
   useEffect(() => {
@@ -58,27 +60,7 @@ export default function AccountPage() {
         ))}
       </div>
 
-      <div className="mt-8 border border-neutral-200 rounded-lg p-6">
-        <h2 className="font-semibold text-neutral-950 mb-4">Hesap Bilgileri</h2>
-        <div className="space-y-3 text-sm">
-          <div>
-            <span className="text-neutral-400 text-xs">Ad Soyad</span>
-            <p className="text-neutral-800">{user.firstName} {user.lastName}</p>
-          </div>
-          <div>
-            <span className="text-neutral-400 text-xs">E-posta</span>
-            <p className="text-neutral-800">{user.email}</p>
-          </div>
-          <div>
-            <span className="text-neutral-400 text-xs">Telefon</span>
-            <p className="text-neutral-800">{user.phone || 'Belirtilmemiş'}</p>
-          </div>
-          <div>
-            <span className="text-neutral-400 text-xs">Giriş Yöntemi</span>
-            <p className="text-neutral-800">{user.provider === 'google' ? 'Google hesabı' : 'E-posta'}</p>
-          </div>
-        </div>
-      </div>
+      <ProfileEditor user={user} updateProfile={updateProfile} />
 
       {addresses.length > 0 && (
         <div className="mt-6 border border-neutral-200 rounded-lg p-6">
@@ -95,6 +77,136 @@ export default function AccountPage() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Editable Profile Section ───────────────────────────────
+function ProfileEditor({
+  user,
+  updateProfile,
+}: {
+  user: UserProfile;
+  updateProfile: (updates: { firstName?: string; lastName?: string; phone?: string }) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [firstName, setFirstName] = useState(user.firstName);
+  const [lastName, setLastName] = useState(user.lastName);
+  const [phone, setPhone] = useState(user.phone);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Sync when user changes
+  useEffect(() => {
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+    setPhone(user.phone);
+  }, [user]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await updateProfile({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+    });
+    setSaving(false);
+    setSaved(true);
+    setEditing(false);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleCancel = () => {
+    setFirstName(user.firstName);
+    setLastName(user.lastName);
+    setPhone(user.phone);
+    setEditing(false);
+  };
+
+  return (
+    <div className="mt-8 border border-neutral-200 rounded-lg p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-semibold text-neutral-950">Hesap Bilgileri</h2>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-sm text-neutral-500 hover:text-neutral-950 transition-colors flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+            </svg>
+            Düzenle
+          </button>
+        )}
+      </div>
+
+      {saved && (
+        <div className="mb-4 bg-green-50 text-green-700 text-sm rounded-lg px-4 py-2.5">
+          Bilgileriniz başarıyla güncellendi.
+        </div>
+      )}
+
+      {editing ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              id="editFirstName"
+              label="Ad"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Adınız"
+            />
+            <Input
+              id="editLastName"
+              label="Soyad"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Soyadınız"
+            />
+          </div>
+          <Input
+            id="editPhone"
+            label="Telefon"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="05XX XXX XX XX"
+          />
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1.5">E-posta</label>
+            <p className="text-sm text-neutral-400 bg-neutral-50 rounded-lg px-3 py-2.5">{user.email}</p>
+            <p className="text-xs text-neutral-400 mt-1">E-posta adresi değiştirilemez.</p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button onClick={handleSave} disabled={saving} size="sm">
+              {saving ? 'Kaydediliyor...' : 'Kaydet'}
+            </Button>
+            <Button variant="outline" onClick={handleCancel} size="sm">
+              İptal
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3 text-sm">
+          <div>
+            <span className="text-neutral-400 text-xs">Ad Soyad</span>
+            <p className="text-neutral-800">{user.firstName} {user.lastName || '—'}</p>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">E-posta</span>
+            <p className="text-neutral-800">{user.email}</p>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">Telefon</span>
+            <p className="text-neutral-800">{user.phone || '—'}</p>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-xs">Giriş Yöntemi</span>
+            <p className="text-neutral-800">{user.provider === 'google' ? 'Google hesabı' : 'E-posta'}</p>
           </div>
         </div>
       )}
