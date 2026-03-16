@@ -22,6 +22,7 @@ export interface User {
   addresses: UserAddress[];
   createdAt: string;
   provider: 'email' | 'google';
+  emailVerified: boolean;
 }
 
 interface AuthState {
@@ -93,12 +94,14 @@ export interface RegisterData {
 export function useAuth() {
   const auth = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  const login = useCallback((email: string, _password: string): { success: boolean; error?: string } => {
+  const login = useCallback((email: string, _password: string): { success: boolean; error?: string; needsVerification?: boolean } => {
     // TODO: Replace with real API call
-    // For demo: check if user exists in localStorage registry
     const registry = getRegistry();
     const existing = registry.find((u) => u.email === email);
     if (existing) {
+      if (!existing.emailVerified && existing.provider === 'email') {
+        return { success: false, error: 'E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı kontrol edin.', needsVerification: true };
+      }
       state = { user: existing, isAuthenticated: true };
       emitChange();
       return { success: true };
@@ -118,6 +121,7 @@ export function useAuth() {
       addresses: [],
       createdAt: new Date().toISOString(),
       provider: 'google',
+      emailVerified: true,
     };
     state = { user, isAuthenticated: true };
     addToRegistry(user);
@@ -138,6 +142,7 @@ export function useAuth() {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
+      emailVerified: false,
       addresses: data.address
         ? [{
             id: `addr-${Date.now()}`,
@@ -155,9 +160,20 @@ export function useAuth() {
     };
 
     addToRegistry(user);
-    state = { user, isAuthenticated: true };
-    emitChange();
+    // Do NOT auto-login — user must verify email first
     return { success: true };
+  }, []);
+
+  const verifyEmail = useCallback((email: string) => {
+    const registry = getRegistry();
+    const user = registry.find((u) => u.email === email);
+    if (user) {
+      user.emailVerified = true;
+      updateRegistry(user);
+      // Auto-login after verification
+      state = { user, isAuthenticated: true };
+      emitChange();
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -192,6 +208,7 @@ export function useAuth() {
     login,
     loginWithGoogle,
     register,
+    verifyEmail,
     logout,
     updateProfile,
     addAddress,

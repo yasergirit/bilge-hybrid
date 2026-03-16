@@ -23,6 +23,14 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const redirect = searchParams.get('redirect') || '/hesabim';
   const provider = searchParams.get('provider');
@@ -61,8 +69,24 @@ function LoginContent() {
       router.push(redirect);
     } else {
       setError(result.error || 'Giriş başarısız.');
+      if (result.needsVerification) {
+        setNeedsVerification(true);
+      }
     }
     setLoading(false);
+  };
+
+  const resendVerification = async () => {
+    setLoading(true);
+    try {
+      await fetch('/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch {}
+    setLoading(false);
+    setResendCooldown(60);
   };
 
   return (
@@ -96,7 +120,16 @@ function LoginContent() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-red-50 text-red-700 text-sm rounded-lg px-4 py-3">
-            {error}
+            <p>{error}</p>
+            {needsVerification && (
+              <button
+                onClick={resendVerification}
+                disabled={loading || resendCooldown > 0}
+                className="mt-2 text-xs text-red-800 underline underline-offset-2 hover:text-red-950 disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Tekrar gönder (${resendCooldown}s)` : 'Doğrulama e-postasını tekrar gönder'}
+              </button>
+            )}
           </div>
         )}
 

@@ -75,12 +75,9 @@ export default function RegisterPage() {
     }
   };
 
-  const handleFinalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doRegister = async (withAddress: boolean) => {
     setLoading(true);
     setError('');
-
-    await new Promise((r) => setTimeout(r, 500));
 
     const result = register({
       firstName: firstName.trim(),
@@ -88,7 +85,7 @@ export default function RegisterPage() {
       email: email.trim(),
       phone: phone.trim(),
       password,
-      address: city ? {
+      address: withAddress && city ? {
         title: addressTitle,
         city,
         district,
@@ -98,42 +95,69 @@ export default function RegisterPage() {
       } : undefined,
     });
 
-    if (result.success) {
-      router.push('/hesabim');
-    } else {
+    if (!result.success) {
       setError(result.error || 'Kayıt başarısız.');
       setLoading(false);
+      return;
     }
+
+    // Send verification email
+    try {
+      const res = await fetch('/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        console.error('Verification email error:', data.error);
+      }
+    } catch (err) {
+      console.error('Failed to send verification email:', err);
+    }
+
+    setLoading(false);
+    setStep(3); // Show "check your email" screen
+  };
+
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doRegister(true);
   };
 
   const skipAddress = async () => {
-    setLoading(true);
-    setError('');
-
-    await new Promise((r) => setTimeout(r, 500));
-
-    const result = register({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      password,
-    });
-
-    if (result.success) {
-      router.push('/hesabim');
-    } else {
-      setError(result.error || 'Kayıt başarısız.');
-      setLoading(false);
-    }
+    await doRegister(false);
   };
+
+  const resendVerification = async () => {
+    setLoading(true);
+    try {
+      await fetch('/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+    } catch {}
+    setLoading(false);
+    setResendCooldown(60);
+  };
+
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-12">
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-neutral-950">Kayıt Ol</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          {step === 1 ? 'Hesap bilgilerinizi girin.' : 'Adres bilgilerinizi ekleyin (isteğe bağlı).'}
+          {step === 1 && 'Hesap bilgilerinizi girin.'}
+          {step === 2 && 'Adres bilgilerinizi ekleyin (isteğe bağlı).'}
+          {step === 3 && 'E-posta adresinizi doğrulayın.'}
         </p>
       </div>
 
@@ -279,12 +303,47 @@ export default function RegisterPage() {
         </form>
       )}
 
-      <div className="mt-8 text-center">
-        <p className="text-sm text-neutral-500">
-          Zaten hesabınız var mı?{' '}
-          <Link href="/giris" className="text-neutral-950 font-semibold hover:underline">Giriş Yap</Link>
-        </p>
-      </div>
+      {/* Step 3: Email verification pending */}
+      {step === 3 && (
+        <div className="text-center">
+          <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+          </div>
+
+          <h2 className="text-xl font-bold text-neutral-950 mb-2">E-postanızı Kontrol Edin</h2>
+          <p className="text-sm text-neutral-500 mb-1">
+            Doğrulama linki aşağıdaki adrese gönderildi:
+          </p>
+          <p className="text-sm font-semibold text-neutral-950 mb-6">{email}</p>
+
+          <div className="bg-neutral-50 rounded-lg p-4 text-sm text-neutral-600 mb-6">
+            <p>E-postanızdaki linke tıklayarak hesabınızı aktifleştirin. Link 1 saat geçerlidir.</p>
+          </div>
+
+          <p className="text-xs text-neutral-400 mb-4">E-posta gelmedi mi? Spam klasörünüzü kontrol edin.</p>
+
+          <button
+            onClick={resendVerification}
+            disabled={loading || resendCooldown > 0}
+            className="text-sm text-neutral-600 hover:text-neutral-950 underline underline-offset-4 transition-colors disabled:opacity-50 disabled:no-underline"
+          >
+            {resendCooldown > 0
+              ? `Tekrar gönder (${resendCooldown}s)`
+              : 'Doğrulama e-postasını tekrar gönder'}
+          </button>
+        </div>
+      )}
+
+      {step !== 3 && (
+        <div className="mt-8 text-center">
+          <p className="text-sm text-neutral-500">
+            Zaten hesabınız var mı?{' '}
+            <Link href="/giris" className="text-neutral-950 font-semibold hover:underline">Giriş Yap</Link>
+          </p>
+        </div>
+      )}
     </div>
   );
 }
